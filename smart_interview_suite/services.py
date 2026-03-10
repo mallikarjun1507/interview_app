@@ -218,7 +218,10 @@ def notify_test_passed(application_id: int):
 
 # -------------------- UPDATED AUTO SCHEDULE (WebRTC) -------------------- #
 
+# -------------------- AUTO SCHEDULE (WebRTC) -------------------- #
+
 def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
+
     db = SessionLocal()
 
     apps = (
@@ -242,14 +245,12 @@ def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
     print("Passed Applications:", len(apps))
     print("Available Slots:", len(slots))
 
-    BASE_URL = "https://interview-app-2-z4rm.onrender.com"
+    BASE_URL = os.getenv("APP_URL", "https://interview-app-2-z4rm.onrender.com")
 
     for app, slot in zip(apps, slots):
 
-        # Generate WebRTC room
         room_id = str(uuid.uuid4())[:8]
 
-        # UPDATED LINK
         room_link = f"{BASE_URL}/?room={room_id}"
 
         interview = Interview(
@@ -264,14 +265,64 @@ def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
 
         db.add(interview)
 
-        # commit before sending email
         db.commit()
-
         db.refresh(interview)
 
         print("Interview created with ID:", interview.id)
         print("Room link:", room_link)
 
         notify_interview_scheduled(interview.id)
+
+    db.close()
+
+
+
+# -------------------- INTERVIEW EMAIL -------------------- #
+
+def notify_interview_scheduled(interview_id: int):
+
+    print("===== notify_interview_scheduled START =====")
+
+    db = SessionLocal()
+
+    interview = db.query(Interview).get(interview_id)
+
+    if not interview:
+        print("Interview not found!")
+        db.close()
+        return
+
+    candidate = db.query(User).get(interview.application.candidate_id)
+    interviewer = db.query(User).get(interview.slot.interviewer_id)
+
+    print("Candidate:", candidate.name)
+    print("Interviewer:", interviewer.name)
+
+    to_email = candidate.resume_email or candidate.email
+
+    subject = f"Interview Scheduled: {interview.application.job.title}"
+
+    message = f"""
+Dear {candidate.name},
+
+Your interview has been scheduled.
+
+Date & Time: {interview.slot.start_time}
+Interviewer: {interviewer.name}
+
+Join Link:
+{interview.meet_link}
+
+Best regards,
+HR Team
+"""
+
+    print("Sending email to candidate...")
+    send_real_email(to_email, subject, message)
+
+    print("Sending email to interviewer...")
+    send_real_email(interviewer.email, "New Interview Assigned", message)
+
+    print("===== notify_interview_scheduled END =====")
 
     db.close()
