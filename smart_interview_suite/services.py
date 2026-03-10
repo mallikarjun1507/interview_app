@@ -3,6 +3,10 @@ import uuid
 from sqlalchemy.orm import joinedload
 from email_validator import validate_email, EmailNotValidError
 from dotenv import load_dotenv
+import smtplib
+import socket
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import os
 from datetime import datetime
 load_dotenv()
@@ -51,14 +55,18 @@ def extract_email_from_resume(resume_text: str) -> str:
 # -------------------- Email Function -------------------- #
 def send_real_email(to_email: str, subject: str, message: str):
 
-    smtp_host = os.getenv("SMTP_HOST")
+    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
     smtp_port = int(os.getenv("SMTP_PORT", 587))
     smtp_email = os.getenv("SMTP_EMAIL")
     smtp_password = os.getenv("SMTP_PASSWORD")
     from_email = os.getenv("FROM_EMAIL", smtp_email)
 
     logger.info(f"Preparing to send email to {to_email}")
-    logger.debug(f"SMTP host={smtp_host} port={smtp_port}")
+    logger.info(f"SMTP host={smtp_host} port={smtp_port}")
+
+    if not smtp_email or not smtp_password:
+        logger.error("SMTP credentials missing")
+        return False
 
     try:
         msg = MIMEMultipart()
@@ -67,22 +75,40 @@ def send_real_email(to_email: str, subject: str, message: str):
         msg["Subject"] = subject
         msg.attach(MIMEText(message, "plain"))
 
-        server = smtplib.SMTP(smtp_host, smtp_port)
-        server.starttls()
+        logger.info("Connecting to SMTP server...")
+
+        server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
+        server.ehlo()
+
+        if smtp_port == 587:
+            server.starttls()
+            server.ehlo()
 
         logger.info("Logging into SMTP server")
+
         server.login(smtp_email, smtp_password)
 
         server.send_message(msg)
+
         server.quit()
 
         logger.info(f"Email sent successfully to {to_email}")
+
         return True
+
+    except socket.gaierror as e:
+        logger.error(f"DNS error connecting to SMTP server: {e}")
+
+    except smtplib.SMTPAuthenticationError as e:
+        logger.error(f"SMTP authentication failed: {e}")
+
+    except smtplib.SMTPException as e:
+        logger.error(f"SMTP error occurred: {e}")
 
     except Exception as e:
         logger.error(f"Email sending failed for {to_email}: {e}")
-        return False
 
+    return False
 # -------------------- Resume Scoring -------------------- #
 
 def score_resume(text: str, required_keywords: list[str]) -> float:
