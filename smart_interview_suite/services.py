@@ -3,11 +3,10 @@ import uuid
 from sqlalchemy.orm import joinedload
 from email_validator import validate_email, EmailNotValidError
 from dotenv import load_dotenv
-import smtplib
-import socket
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 import os
+import socket
 from datetime import datetime
 load_dotenv()
 
@@ -55,60 +54,34 @@ def extract_email_from_resume(resume_text: str) -> str:
 # -------------------- Email Function -------------------- #
 def send_real_email(to_email: str, subject: str, message: str):
 
-    smtp_host = os.getenv("SMTP_HOST", "smtp.gmail.com")
-    smtp_port = int(os.getenv("SMTP_PORT", 587))
-    smtp_email = os.getenv("SMTP_EMAIL")
-    smtp_password = os.getenv("SMTP_PASSWORD")
-    from_email = os.getenv("FROM_EMAIL", smtp_email)
+    api_key = os.getenv("SENDGRID_API_KEY")
+    from_email = os.getenv("FROM_EMAIL")
 
     logger.info(f"Preparing to send email to {to_email}")
-    logger.info(f"SMTP host={smtp_host} port={smtp_port}")
-
-    if not smtp_email or not smtp_password:
-        logger.error("SMTP credentials missing")
-        return False
 
     try:
-        msg = MIMEMultipart()
-        msg["From"] = from_email
-        msg["To"] = to_email
-        msg["Subject"] = subject
-        msg.attach(MIMEText(message, "plain"))
 
-        logger.info("Connecting to SMTP server...")
+        mail = Mail(
+            from_email=from_email,
+            to_emails=to_email,
+            subject=subject,
+            plain_text_content=message
+        )
 
-        server = smtplib.SMTP(smtp_host, smtp_port, timeout=20)
-        server.ehlo()
+        sg = SendGridAPIClient(api_key)
 
-        if smtp_port == 587:
-            server.starttls()
-            server.ehlo()
+        response = sg.send(mail)
 
-        logger.info("Logging into SMTP server")
-
-        server.login(smtp_email, smtp_password)
-
-        server.send_message(msg)
-
-        server.quit()
-
-        logger.info(f"Email sent successfully to {to_email}")
-
-        return True
-
-    except socket.gaierror as e:
-        logger.error(f"DNS error connecting to SMTP server: {e}")
-
-    except smtplib.SMTPAuthenticationError as e:
-        logger.error(f"SMTP authentication failed: {e}")
-
-    except smtplib.SMTPException as e:
-        logger.error(f"SMTP error occurred: {e}")
+        if response.status_code == 202:
+            logger.info(f"Email sent successfully to {to_email}")
+            return True
+        else:
+            logger.error(f"SendGrid error status: {response.status_code}")
+            return False
 
     except Exception as e:
         logger.error(f"Email sending failed for {to_email}: {e}")
-
-    return False
+        return False
 # -------------------- Resume Scoring -------------------- #
 
 def score_resume(text: str, required_keywords: list[str]) -> float:
