@@ -13,4 +13,3 @@ opencv-python
 pydantic
 pdfplumber
 pillow
-sqlite3
