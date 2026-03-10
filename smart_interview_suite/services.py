@@ -12,6 +12,9 @@ from pypdf import PdfReader
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from logger_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # -------------------- Utility Functions -------------------- #
@@ -218,9 +221,9 @@ def notify_test_passed(application_id: int):
 
 # -------------------- UPDATED AUTO SCHEDULE (WebRTC) -------------------- #
 
-# -------------------- AUTO SCHEDULE (WebRTC) -------------------- #
-
 def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
+
+    logger.info(f"Starting auto_schedule_interviews for job_id={job_id}")
 
     db = SessionLocal()
 
@@ -242,16 +245,18 @@ def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
         .all()
     )
 
-    print("Passed Applications:", len(apps))
-    print("Available Slots:", len(slots))
+    logger.info(f"Passed Applications: {len(apps)}")
+    logger.info(f"Available Slots: {len(slots)}")
 
     BASE_URL = os.getenv("APP_URL", "https://interview-app-2-z4rm.onrender.com")
 
     for app, slot in zip(apps, slots):
 
         room_id = str(uuid.uuid4())[:8]
-
         room_link = f"{BASE_URL}/?room={room_id}"
+
+        logger.info(f"Creating interview for application_id={app.id}")
+        logger.info(f"Generated room link: {room_link}")
 
         interview = Interview(
             application_id=app.id,
@@ -268,35 +273,34 @@ def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
         db.commit()
         db.refresh(interview)
 
-        print("Interview created with ID:", interview.id)
-        print("Room link:", room_link)
+        logger.info(f"Interview created successfully with ID={interview.id}")
 
         notify_interview_scheduled(interview.id)
 
     db.close()
 
-
+    logger.info("auto_schedule_interviews completed")
 
 # -------------------- INTERVIEW EMAIL -------------------- #
 
 def notify_interview_scheduled(interview_id: int):
 
-    print("===== notify_interview_scheduled START =====")
+    logger.info(f"notify_interview_scheduled START for interview_id={interview_id}")
 
     db = SessionLocal()
 
     interview = db.query(Interview).get(interview_id)
 
     if not interview:
-        print("Interview not found!")
+        logger.error("Interview not found")
         db.close()
         return
 
     candidate = db.query(User).get(interview.application.candidate_id)
     interviewer = db.query(User).get(interview.slot.interviewer_id)
 
-    print("Candidate:", candidate.name)
-    print("Interviewer:", interviewer.name)
+    logger.info(f"Candidate: {candidate.name}")
+    logger.info(f"Interviewer: {interviewer.name}")
 
     to_email = candidate.resume_email or candidate.email
 
@@ -317,12 +321,14 @@ Best regards,
 HR Team
 """
 
-    print("Sending email to candidate...")
+    logger.info(f"Sending email to candidate: {to_email}")
     send_real_email(to_email, subject, message)
 
-    print("Sending email to interviewer...")
+    logger.info(f"Sending email to interviewer: {interviewer.email}")
     send_real_email(interviewer.email, "New Interview Assigned", message)
 
-    print("===== notify_interview_scheduled END =====")
+    logger.info("Emails sent successfully")
 
     db.close()
+
+    logger.info("notify_interview_scheduled END")

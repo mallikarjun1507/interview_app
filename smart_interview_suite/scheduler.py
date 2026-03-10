@@ -3,6 +3,7 @@ from models import SessionLocal, Job, InterviewSlot, Interview
 from datetime import datetime
 
 
+
 def admin_manage_slots():
     db = SessionLocal()
 
