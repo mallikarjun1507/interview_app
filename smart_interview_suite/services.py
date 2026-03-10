@@ -241,15 +241,21 @@ def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
         db.query(InterviewSlot)
         .filter(
             InterviewSlot.job_id == job_id,
-            InterviewSlot.is_booked == False,
-            InterviewSlot.start_time >= datetime.utcnow(),
+            InterviewSlot.is_booked == False
         )
         .order_by(InterviewSlot.start_time.asc())
         .all()
     )
 
+    # ✅ ADD LOGGER HERE
+    logger.info(f"Slots fetched: {len(slots)}")
+
+    for s in slots:
+        logger.info(
+            f"Slot ID={s.id} job_id={s.job_id} start={s.start_time} booked={s.is_booked}"
+        )
+
     logger.info(f"Passed Applications: {len(apps)}")
-    logger.info(f"Available Slots: {len(slots)}")
 
     BASE_URL = os.getenv("APP_URL", "https://interview-app-2-z4rm.onrender.com")
 
