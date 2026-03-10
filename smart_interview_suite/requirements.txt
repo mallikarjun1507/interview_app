@@ -1,0 +1,14 @@
+
+streamlit==1.55.0
+sqlalchemy==2.0.48
+python-dotenv==1.2.2
+email-validator==2.3.0
+pypdf==6.7.5
+streamlit-webrtc==0.64.5
+aiortc==1.14.0
+av==16.1.0
+numpy
+pandas
+opencv-python
+pydantic
+pdfplumber

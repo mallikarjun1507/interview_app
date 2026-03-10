@@ -1,0 +1,322 @@
+import re
+import uuid
+from sqlalchemy.orm import joinedload
+from email_validator import validate_email, EmailNotValidError
+from dotenv import load_dotenv
+import os
+from datetime import datetime
+load_dotenv()
+
+from models import SessionLocal, Question, Application, InterviewSlot, Interview, Answer, User
+from pypdf import PdfReader
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+
+# -------------------- Utility Functions -------------------- #
+
+def max_total_for_job(job):
+    return sum(q.weight for q in job.questions)
+
+
+def extract_text_from_pdf(uploaded_file):
+    try:
+        reader = PdfReader(uploaded_file)
+        text = ""
+        for page in reader.pages:
+            page_text = page.extract_text() or ""
+            text += page_text + "\n"
+        return text
+    except Exception:
+        return ""
+
+
+def extract_email_from_resume(resume_text: str) -> str:
+    email_pattern = r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'
+    emails = re.findall(email_pattern, resume_text)
+
+    for email in emails:
+        try:
+            validate_email(email)
+            return email.lower()
+        except EmailNotValidError:
+            continue
+    return None
+
+
+# -------------------- Email Function -------------------- #
+
+def send_real_email(to_email: str, subject: str, message: str):
+    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
+    smtp_port = int(os.getenv('SMTP_PORT', '587'))
+    smtp_email = os.getenv('SMTP_EMAIL')
+    smtp_password = os.getenv('SMTP_PASSWORD')
+    from_email = os.getenv('FROM_EMAIL', smtp_email)
+
+    try:
+        msg = MIMEMultipart()
+        msg['From'] = from_email
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        msg.attach(MIMEText(message, 'plain'))
+
+        with smtplib.SMTP(smtp_host, smtp_port) as server:
+            server.starttls()
+            server.login(smtp_email, smtp_password)
+            server.send_message(msg)
+
+        print(f"EMAIL SENT to {to_email}")
+        return True
+
+    except Exception as e:
+        print(f"Email failed: {e}")
+        return False
+
+
+# -------------------- Resume Scoring -------------------- #
+
+def score_resume(text: str, required_keywords: list[str]) -> float:
+    if not text:
+        return 0.0
+
+    text_low = text.lower()
+    score = 0.0
+
+    for kw in required_keywords:
+        if kw.lower() in text_low:
+            score += 1.0
+
+    return score
+
+
+def run_resume_screening(application_id: int, resume_text: str):
+    db = SessionLocal()
+    app = db.query(Application).get(application_id)
+
+    if not app:
+        db.close()
+        return None
+
+    required = []
+    if app.job and app.job.skills_required:
+        required = [s.strip() for s in app.job.skills_required.split(",") if s.strip()]
+
+    rs = score_resume(resume_text, required)
+    app.resume_score = rs
+
+    needed = max(1, len(required) // 2) if required else 1
+
+    if rs >= needed:
+        app.status = "TEST_PENDING"
+    else:
+        app.status = "RESUME_REJECTED"
+
+    db.commit()
+    db.refresh(app)
+    db.close()
+
+    return app
+
+
+# -------------------- Test Evaluation -------------------- #
+
+def evaluate_screening(application_id: int):
+    db = SessionLocal()
+
+    app = (
+        db.query(Application)
+        .options(joinedload(Application.answers).joinedload(Answer.question))
+        .get(application_id)
+    )
+
+    if not app:
+        db.close()
+        return None
+
+    total = 0.0
+
+    for ans in app.answers:
+        q = ans.question
+
+        if q.question_type == "MCQ" and ans.selected_option == q.correct_option:
+            ans.score = q.weight
+        else:
+            ans.score = 0.0
+
+        total += ans.score
+
+    app.total_score = total
+    max_total = max_total_for_job(app.job)
+    threshold = 0.6 * max_total if max_total > 0 else 0.0
+
+    if total >= threshold:
+        app.status = "TEST_PASSED"
+        notify_test_passed(app.id)
+    else:
+        app.status = "TEST_FAILED"
+
+    db.commit()
+    db.refresh(app)
+    db.close()
+
+    return app
+
+
+# -------------------- Notifications -------------------- #
+smtp_email = os.getenv('SMTP_EMAIL')
+smtp_password = os.getenv('SMTP_PASSWORD')
+def notify_test_passed(application_id: int):
+    db = SessionLocal()
+    global smtp_email
+
+    print("===== notify_test_passed START =====")
+    print("Application ID:", application_id)
+
+    app = db.query(Application).get(application_id)
+
+    if not app:
+        print("Application not found!")
+        db.close()
+        return
+
+    print("Application Status:", app.status)
+
+    if app.status == "TEST_PASSED":
+
+        candidate = db.query(User).get(app.candidate_id)
+        to_email = candidate.resume_email or candidate.email
+
+        print("Candidate:", candidate.name)
+        print("Candidate Email:", to_email)
+
+        print("SMTP EMAIL:", smtp_email)
+        print("SMTP PASSWORD EXISTS:", bool(smtp_password))
+
+        subject = f"🎉 Test Passed! {app.job.title}"
+
+        message = (
+            f"Dear {candidate.name},\n\n"
+            f"You PASSED the screening test!\n"
+            f"Score: {app.total_score:.1f}\n\n"
+            f"Job: {app.job.title}\n"
+            f"Application ID: {app.id}\n\n"
+            f"Interview will be scheduled soon.\n\n"
+            f"HR Team"
+        )
+
+        print("Sending test passed email...")
+
+        send_real_email(to_email, subject, message)
+
+    print("===== notify_test_passed END =====")
+
+    db.close()
+
+# -------------------- UPDATED AUTO SCHEDULE (WebRTC) -------------------- #
+
+def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
+    db = SessionLocal()
+
+    apps = (
+        db.query(Application)
+        .filter(Application.job_id == job_id, Application.status == "TEST_PASSED")
+        .order_by(Application.total_score.desc())
+        .all()
+    )
+
+    slots = (
+        db.query(InterviewSlot)
+        .filter(
+            InterviewSlot.job_id == job_id,
+            InterviewSlot.is_booked == False,
+            InterviewSlot.start_time >= datetime.utcnow(),
+        )
+        .order_by(InterviewSlot.start_time.asc())
+        .all()
+    )
+
+    print("Passed Applications:", len(apps))
+    print("Available Slots:", len(slots))
+
+    for app, slot in zip(apps, slots):
+
+        # Generate WebRTC room
+        room_id = str(uuid.uuid4())[:8]
+        room_link = f"http://localhost:8501/?room={room_id}"
+
+        interview = Interview(
+            application_id=app.id,
+            slot_id=slot.id,
+            round_type=round_type,
+            meet_link=room_link,
+        )
+
+        slot.is_booked = True
+        app.status = "SCHEDULED"
+
+        db.add(interview)
+
+        # IMPORTANT: commit before sending email
+        db.commit()
+
+        # refresh to ensure ID exists
+        db.refresh(interview)
+
+        print("Interview created with ID:", interview.id)
+        print("Room link:", room_link)
+
+        notify_interview_scheduled(interview.id)
+
+    db.close()
+
+def notify_interview_scheduled(interview_id: int):
+
+    print("===== notify_interview_scheduled START =====")
+    print("Interview ID:", interview_id)
+
+    db = SessionLocal()
+
+    interview = db.query(Interview).get(interview_id)
+
+    if not interview:
+        print("Interview not found!")
+        db.close()
+        return
+
+    print("Interview Found")
+
+    candidate = db.query(User).get(interview.application.candidate_id)
+    interviewer = db.query(User).get(interview.slot.interviewer_id)
+
+    print("Candidate:", candidate.name)
+    print("Interviewer:", interviewer.name)
+
+    print("Meet Link:", interview.meet_link)
+
+    to_email = candidate.resume_email or candidate.email
+
+    print("Candidate Email:", to_email)
+    print("Interviewer Email:", interviewer.email)
+
+    subject = f"Interview Scheduled: {interview.application.job.title}"
+
+    message = (
+        f"Dear {candidate.name},\n\n"
+        f"Your interview is CONFIRMED:\n\n"
+        f"Date & Time: {interview.slot.start_time}\n"
+        f"Interviewer: {interviewer.name}\n"
+        f"Join Link: {interview.meet_link}\n\n"
+        f"Application ID: {interview.application.id}\n\n"
+        f"HR Team"
+    )
+
+    print("Sending email to candidate...")
+    send_real_email(to_email, subject, message)
+
+    print("Sending email to interviewer...")
+    send_real_email("madhukumarap07@gmail.com", "New Interview Assigned", message)
+
+    print("===== notify_interview_scheduled END =====")
+
+    db.close()

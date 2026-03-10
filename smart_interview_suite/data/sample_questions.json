@@ -1,0 +1,101 @@
+[
+  {
+    "job_title": "Python Backend Developer",
+    "questions": [
+      {
+        "text": "Python is a ___ typed language.",
+        "question_type": "MCQ",
+        "options": ["statically", "dynamically"],
+        "correct_option": "dynamically",
+        "weight": 2.0
+      },
+      {
+        "text": "What does ORM stand for?",
+        "question_type": "MCQ",
+        "options": ["Object Runtime Method", "Object Relational Mapping", "Online Resource Manager"],
+        "correct_option": "Object Relational Mapping",
+        "weight": 2.0
+      },
+      {
+        "text": "Which framework is commonly used for Python REST APIs?",
+        "question_type": "MCQ",
+        "options": ["Flask", "Django REST Framework", "FastAPI", "Bottle"],
+        "correct_option": "Django REST Framework",
+        "weight": 2.0
+      },
+      {
+        "text": "Explain the purpose of Django migrations.",
+        "question_type": "TEXT",
+        "options": [],
+        "correct_option": "",
+        "weight": 3.0
+      }
+    ]
+  },
+  {
+    "job_title": "Full Stack Developer",
+    "questions": [
+      {
+        "text": "Which HTTP method is used for creating new resources?",
+        "question_type": "MCQ",
+        "options": ["GET", "POST", "PUT", "DELETE"],
+        "correct_option": "POST",
+        "weight": 1.5
+      },
+      {
+        "text": "React is primarily a ___ library.",
+        "question_type": "MCQ",
+        "options": ["Backend", "Frontend", "Database", "Testing"],
+        "correct_option": "Frontend",
+        "weight": 2.0
+      },
+      {
+        "text": "What does JWT stand for?",
+        "question_type": "MCQ",
+        "options": ["JSON Web Token", "Java Web Token", "JavaScript Web Token", "JSON Web Test"],
+        "correct_option": "JSON Web Token",
+        "weight": 2.0
+      },
+      {
+        "text": "Describe how CORS works in web applications.",
+        "question_type": "TEXT",
+        "options": [],
+        "correct_option": "",
+        "weight": 3.5
+      }
+    ]
+  },
+  {
+    "job_title": "Data Analyst",
+    "questions": [
+      {
+        "text": "Which SQL clause filters rows after GROUP BY?",
+        "question_type": "MCQ",
+        "options": ["WHERE", "HAVING", "ORDER BY", "SELECT"],
+        "correct_option": "HAVING",
+        "weight": 2.0
+      },
+      {
+        "text": "Pandas DataFrame is similar to:",
+        "question_type": "MCQ",
+        "options": ["SQL Table", "JSON Object", "Python List", "HTML Table"],
+        "correct_option": "SQL Table",
+        "weight": 2.0
+      },
+      {
+        "text": "What does JOIN do in SQL?",
+        "question_type": "MCQ",
+        "options": ["Filter rows", "Combine tables", "Sort data", "Group data"],
+        "correct_option": "Combine tables",
+        "weight": 1.5
+      },
+      {
+        "text": "Explain the difference between INNER JOIN and LEFT JOIN.",
+        "question_type": "TEXT",
+        "options": [],
+        "correct_option": "",
+        "weight": 3.0
+      }
+    ]
+  }
+]
