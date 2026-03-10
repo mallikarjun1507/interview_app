@@ -48,31 +48,34 @@ def extract_email_from_resume(resume_text: str) -> str:
 # -------------------- Email Function -------------------- #
 
 def send_real_email(to_email: str, subject: str, message: str):
-    smtp_host = os.getenv('SMTP_HOST', 'smtp.gmail.com')
-    smtp_port = int(os.getenv('SMTP_PORT', '587'))
-    smtp_email = os.getenv('SMTP_EMAIL')
-    smtp_password = os.getenv('SMTP_PASSWORD')
-    from_email = os.getenv('FROM_EMAIL', smtp_email)
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", 587))
+    smtp_email = os.getenv("SMTP_EMAIL")
+    smtp_password = os.getenv("SMTP_PASSWORD")
+    from_email = os.getenv("FROM_EMAIL", smtp_email)
+
+    print("Sending email to:", to_email)
+    print("SMTP_EMAIL:", smtp_email)
 
     try:
         msg = MIMEMultipart()
-        msg['From'] = from_email
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(message, 'plain'))
+        msg["From"] = from_email
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.attach(MIMEText(message, "plain"))
 
-        with smtplib.SMTP(smtp_host, smtp_port) as server:
-            server.starttls()
-            server.login(smtp_email, smtp_password)
-            server.send_message(msg)
+        server = smtplib.SMTP(smtp_host, smtp_port)
+        server.starttls()
+        server.login(smtp_email, smtp_password)
+        server.send_message(msg)
+        server.quit()
 
-        print(f"EMAIL SENT to {to_email}")
+        print("EMAIL SENT SUCCESSFULLY")
         return True
 
     except Exception as e:
-        print(f"Email failed: {e}")
+        print("EMAIL ERROR:", e)
         return False
-
 
 # -------------------- Resume Scoring -------------------- #
 
@@ -239,11 +242,15 @@ def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
     print("Passed Applications:", len(apps))
     print("Available Slots:", len(slots))
 
+    BASE_URL = "https://interview-app-2-z4rm.onrender.com"
+
     for app, slot in zip(apps, slots):
 
         # Generate WebRTC room
         room_id = str(uuid.uuid4())[:8]
-        room_link = f"http://localhost:8501/?room={room_id}"
+
+        # UPDATED LINK
+        room_link = f"{BASE_URL}/?room={room_id}"
 
         interview = Interview(
             application_id=app.id,
@@ -257,66 +264,14 @@ def auto_schedule_interviews(job_id: int, round_type: str = "TECH1"):
 
         db.add(interview)
 
-        # IMPORTANT: commit before sending email
+        # commit before sending email
         db.commit()
 
-        # refresh to ensure ID exists
         db.refresh(interview)
 
         print("Interview created with ID:", interview.id)
         print("Room link:", room_link)
 
         notify_interview_scheduled(interview.id)
-
-    db.close()
-
-def notify_interview_scheduled(interview_id: int):
-
-    print("===== notify_interview_scheduled START =====")
-    print("Interview ID:", interview_id)
-
-    db = SessionLocal()
-
-    interview = db.query(Interview).get(interview_id)
-
-    if not interview:
-        print("Interview not found!")
-        db.close()
-        return
-
-    print("Interview Found")
-
-    candidate = db.query(User).get(interview.application.candidate_id)
-    interviewer = db.query(User).get(interview.slot.interviewer_id)
-
-    print("Candidate:", candidate.name)
-    print("Interviewer:", interviewer.name)
-
-    print("Meet Link:", interview.meet_link)
-
-    to_email = candidate.resume_email or candidate.email
-
-    print("Candidate Email:", to_email)
-    print("Interviewer Email:", interviewer.email)
-
-    subject = f"Interview Scheduled: {interview.application.job.title}"
-
-    message = (
-        f"Dear {candidate.name},\n\n"
-        f"Your interview is CONFIRMED:\n\n"
-        f"Date & Time: {interview.slot.start_time}\n"
-        f"Interviewer: {interviewer.name}\n"
-        f"Join Link: {interview.meet_link}\n\n"
-        f"Application ID: {interview.application.id}\n\n"
-        f"HR Team"
-    )
-
-    print("Sending email to candidate...")
-    send_real_email(to_email, subject, message)
-
-    print("Sending email to interviewer...")
-    send_real_email("madhukumarap07@gmail.com", "New Interview Assigned", message)
-
-    print("===== notify_interview_scheduled END =====")
 
     db.close()
