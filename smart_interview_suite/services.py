@@ -49,16 +49,16 @@ def extract_email_from_resume(resume_text: str) -> str:
 
 
 # -------------------- Email Function -------------------- #
-
 def send_real_email(to_email: str, subject: str, message: str):
+
     smtp_host = os.getenv("SMTP_HOST")
     smtp_port = int(os.getenv("SMTP_PORT", 587))
     smtp_email = os.getenv("SMTP_EMAIL")
     smtp_password = os.getenv("SMTP_PASSWORD")
     from_email = os.getenv("FROM_EMAIL", smtp_email)
 
-    print("Sending email to:", to_email)
-    print("SMTP_EMAIL:", smtp_email)
+    logger.info(f"Preparing to send email to {to_email}")
+    logger.debug(f"SMTP host={smtp_host} port={smtp_port}")
 
     try:
         msg = MIMEMultipart()
@@ -69,15 +69,18 @@ def send_real_email(to_email: str, subject: str, message: str):
 
         server = smtplib.SMTP(smtp_host, smtp_port)
         server.starttls()
+
+        logger.info("Logging into SMTP server")
         server.login(smtp_email, smtp_password)
+
         server.send_message(msg)
         server.quit()
 
-        print("EMAIL SENT SUCCESSFULLY")
+        logger.info(f"Email sent successfully to {to_email}")
         return True
 
     except Exception as e:
-        print("EMAIL ERROR:", e)
+        logger.error(f"Email sending failed for {to_email}: {e}")
         return False
 
 # -------------------- Resume Scoring -------------------- #
@@ -173,31 +176,31 @@ def evaluate_screening(application_id: int):
 smtp_email = os.getenv('SMTP_EMAIL')
 smtp_password = os.getenv('SMTP_PASSWORD')
 def notify_test_passed(application_id: int):
-    db = SessionLocal()
-    global smtp_email
 
-    print("===== notify_test_passed START =====")
-    print("Application ID:", application_id)
+    db = SessionLocal()
+
+    logger.info("===== notify_test_passed START =====")
+    logger.info(f"Application ID: {application_id}")
 
     app = db.query(Application).get(application_id)
 
     if not app:
-        print("Application not found!")
+        logger.error("Application not found")
         db.close()
         return
 
-    print("Application Status:", app.status)
+    logger.info(f"Application Status: {app.status}")
 
     if app.status == "TEST_PASSED":
 
         candidate = db.query(User).get(app.candidate_id)
+
         to_email = candidate.resume_email or candidate.email
 
-        print("Candidate:", candidate.name)
-        print("Candidate Email:", to_email)
+        logger.info(f"Candidate Name: {candidate.name}")
+        logger.info(f"Candidate Email: {to_email}")
 
-        print("SMTP EMAIL:", smtp_email)
-        print("SMTP PASSWORD EXISTS:", bool(smtp_password))
+        logger.debug(f"SMTP EMAIL configured: {bool(os.getenv('SMTP_EMAIL'))}")
 
         subject = f"🎉 Test Passed! {app.job.title}"
 
@@ -211,11 +214,11 @@ def notify_test_passed(application_id: int):
             f"HR Team"
         )
 
-        print("Sending test passed email...")
+        logger.info("Sending test passed email")
 
         send_real_email(to_email, subject, message)
 
-    print("===== notify_test_passed END =====")
+    logger.info("===== notify_test_passed END =====")
 
     db.close()
 
@@ -321,13 +324,25 @@ Best regards,
 HR Team
 """
 
+    # Candidate Email
     logger.info(f"Sending email to candidate: {to_email}")
-    send_real_email(to_email, subject, message)
 
+    try:
+        send_real_email(to_email, subject, message)
+        logger.info("Candidate email sent successfully")
+    except Exception as e:
+        logger.error(f"Candidate email failed: {e}")
+
+    # Interviewer Email
     logger.info(f"Sending email to interviewer: {interviewer.email}")
-    send_real_email(interviewer.email, "New Interview Assigned", message)
 
-    logger.info("Emails sent successfully")
+    try:
+        send_real_email(interviewer.email, "New Interview Assigned", message)
+        logger.info("Interviewer email sent successfully")
+    except Exception as e:
+        logger.error(f"Interviewer email failed: {e}")
+
+    logger.info("Emails sending process completed")
 
     db.close()
 
