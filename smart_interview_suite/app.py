@@ -23,47 +23,36 @@ from services import (
 from auth import login
 from scheduler import admin_manage_slots, interviewer_view_interviews
 
-#  NEW IMPORTS FOR WEBRTC
-from streamlit_webrtc import webrtc_streamer, RTCConfiguration, WebRtcMode
+
 import uuid
+
+import streamlit as st
 
 def interview_room(room_id):
 
     st.header("🎥 Live Interview Room")
     st.success(f"Room ID: {room_id}")
-    st.info("Allow camera and microphone access.")
 
-    RTC_CONFIGURATION = RTCConfiguration({
-        "iceServers": [
+    st.info("Allow camera and microphone access when joining the interview.")
 
-            # STUN server
-            {"urls": ["stun:stun.l.google.com:19302"]},
+    # Daily room URL (replace with your Daily subdomain)
+    DAILY_DOMAIN = "https://arjun1.daily.co"
 
-            # TURN relay (openrelay)
-            {
-                "urls": [
-                    "turn:openrelay.metered.ca:80",
-                    "turn:openrelay.metered.ca:443",
-                    "turn:openrelay.metered.ca:443?transport=tcp"
-                ],
-                "username": "openrelayproject",
-                "credential": "openrelayproject"
-            }
-        ]
-    })
+    room_url = f"{DAILY_DOMAIN}/{room_id}"
 
-    ctx = webrtc_streamer(
-        key=f"interview-room-{room_id}",
-        mode=WebRtcMode.SENDRECV,
-        rtc_configuration=RTC_CONFIGURATION,
-        media_stream_constraints={
-            "video": True,
-            "audio": True
-        },
-    )
+    st.write("### Join Interview")
 
-    if ctx and ctx.state.playing:
-        st.success("🟢 Connected to interview room")
+    if st.button("Start / Join Interview"):
+        st.components.v1.iframe(
+            room_url,
+            height=650,
+            scrolling=False
+        )
+
+    st.markdown("---")
+    st.write("Share this interview link with the candidate:")
+
+    st.code(room_url)
 
 def seed_demo_data():
     db = SessionLocal()
