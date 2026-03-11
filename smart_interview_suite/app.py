@@ -27,32 +27,64 @@ from scheduler import admin_manage_slots, interviewer_view_interviews
 from streamlit_webrtc import webrtc_streamer, RTCConfiguration
 import uuid
 
-
+# laatest updates about the issues
 # ------------------ NEW INTERVIEW ROOM FUNCTION ------------------ #
 def interview_room(room_id):
+
     st.header("🎥 Live Interview Room")
-    st.info(f"Room ID: {room_id}")
+    st.success(f"Room ID: {room_id}")
+    st.info("Allow camera and microphone access to join the interview.")
 
-    RTC_CONFIGURATION = RTCConfiguration(
-   {
-   "iceServers":[
-   {"urls":["stun:stun.l.google.com:19302"]},
-   {
-            "urls": "turn:openrelay.metered.ca:80",
-            "username": "openrelayproject",
-            "credential": "openrelayproject"
-        }
-   ]
-   })
+    # initialize session state
+    if "interview_started" not in st.session_state:
+        st.session_state.interview_started = False
 
-    webrtc_streamer(
-        key=room_id,
-        rtc_configuration=RTC_CONFIGURATION,
-        media_stream_constraints={"video": True, "audio": True},
-    )
+    col1, col2 = st.columns(2)
 
+    with col1:
+        if st.button("▶ Start Interview"):
+            st.session_state.interview_started = True
 
+    with col2:
+        if st.button("⏹ Leave Interview"):
+            st.session_state.interview_started = False
+            st.warning("You left the interview")
+            st.rerun()
 
+    # only create webrtc when interview started
+    if st.session_state.interview_started:
+
+        RTC_CONFIGURATION = RTCConfiguration({
+            "iceServers": [
+                {"urls": ["stun:stun.l.google.com:19302"]},
+                {"urls": ["stun:stun1.l.google.com:19302"]},
+                {
+                    "urls": [
+                        "turn:openrelay.metered.ca:80",
+                        "turn:openrelay.metered.ca:443",
+                        "turn:openrelay.metered.ca:443?transport=tcp"
+                    ],
+                    "username": "openrelayproject",
+                    "credential": "openrelayproject",
+                },
+            ]
+        })
+
+        ctx = webrtc_streamer(
+            key=f"interview-{room_id}",   # stable key
+            rtc_configuration=RTC_CONFIGURATION,
+            media_stream_constraints={
+                "video": True,
+                "audio": True
+            },
+        )
+
+        if ctx and ctx.state.playing:
+            st.success("🟢 Connected to interview room")
+
+    else:
+        st.info("Click **Start Interview** to begin.")
+        
 def seed_demo_data():
     db = SessionLocal()
     if not db.query(User).first():
