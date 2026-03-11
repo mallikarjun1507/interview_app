@@ -33,26 +33,26 @@ def interview_room(room_id):
     st.header("🎥 Live Interview Room")
     st.success(f"Room ID: {room_id}")
 
-    st.info("Allow camera and microphone access when joining the interview.")
+    st.info("Allow camera and microphone access to join the interview.")
 
-    # Daily room URL (replace with your Daily subdomain)
-    DAILY_DOMAIN = "https://arjun1.daily.co"
-
-    room_url = f"{DAILY_DOMAIN}/{room_id}"
+    # Jitsi meeting URL
+    jitsi_url = f"https://meet.jit.si/interview-{room_id}"
 
     st.write("### Join Interview")
 
-    if st.button("Start / Join Interview"):
+    # Join button
+    if st.button("▶ Start / Join Interview"):
+
         st.components.v1.iframe(
-            room_url,
-            height=650,
+            jitsi_url,
+            height=700,
             scrolling=False
         )
 
     st.markdown("---")
     st.write("Share this interview link with the candidate:")
 
-    st.code(room_url)
+    st.code(jitsi_url)
 
 def seed_demo_data():
     db = SessionLocal()
