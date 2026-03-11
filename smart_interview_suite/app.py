@@ -24,7 +24,7 @@ from auth import login
 from scheduler import admin_manage_slots, interviewer_view_interviews
 
 #  NEW IMPORTS FOR WEBRTC
-from streamlit_webrtc import webrtc_streamer, RTCConfiguration
+from streamlit_webrtc import webrtc_streamer, RTCConfiguration, WebRtcMode
 import uuid
 
 def interview_room(room_id):
@@ -64,7 +64,7 @@ def interview_room(room_id):
 
     if ctx and ctx.state.playing:
         st.success("🟢 Connected to interview room")
-        
+
 def seed_demo_data():
     db = SessionLocal()
     if not db.query(User).first():
