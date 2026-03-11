@@ -57,13 +57,13 @@ def interview_room(room_id):
         RTC_CONFIGURATION = RTCConfiguration({
             "iceServers": [
                 {"urls": ["stun:stun.l.google.com:19302"]},
-                {"urls": ["stun:stun1.l.google.com:19302"]},
+                
                 {
-                    "urls": [
-                        "turn:openrelay.metered.ca:80",
-                        "turn:openrelay.metered.ca:443",
-                        "turn:openrelay.metered.ca:443?transport=tcp"
-                    ],
+                   "urls": [
+                "turn:global.turn.twilio.com:3478?transport=udp",
+                "turn:global.turn.twilio.com:3478?transport=tcp",
+                "turn:global.turn.twilio.com:443?transport=tcp"
+            ],
                     "username": "openrelayproject",
                     "credential": "openrelayproject",
                 },
@@ -84,7 +84,7 @@ def interview_room(room_id):
 
     else:
         st.info("Click **Start Interview** to begin.")
-        
+
 def seed_demo_data():
     db = SessionLocal()
     if not db.query(User).first():
