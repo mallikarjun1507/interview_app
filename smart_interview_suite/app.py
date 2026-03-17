@@ -11,7 +11,7 @@ from models import (
     Question,
     Application,
     Answer,
-    Interview   # ✅ Added
+    Interview   
 )
 from services import (
     evaluate_screening, 
@@ -58,7 +58,7 @@ def seed_demo_data():
     db = SessionLocal()
     if not db.query(User).first():
         admin = User(name="Admin", email="admin@test.com", role="ADMIN", password="admin")
-        interviewer = User(name="Interviewer", email="int@test.com", role="INTERVIEWER", password="test")
+        interviewer = User(name="Interviewer", email="bhoomikayashu14@gmail.com", role="INTERVIEWER", password="test")
         candidate = User(name="Candidate", email="cand@test.com", role="CANDIDATE", password="test")
         db.add_all([admin, interviewer, candidate])
         db.commit()
